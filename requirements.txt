@@ -1,0 +1,2 @@
+screeninfo
+python-vlc
