@@ -38,9 +38,10 @@ class Assignment:
 # - Archivo de playlist M3U:  "lista.m3u8"
 # - Directorio con videos:    "C:/videos/loop1"
 # - Archivo de video:         "intro.mp4"
+
 ASSIGNMENTS = [
-    Assignment(path="pantalla1.xspf", screen=1),
-    Assignment(path="Screen Recording 2025-06-13 095615.mp4", screen=2),
+    Assignment(path="", screen=1),
+    Assignment(path="", screen=2),
 
 ]
 
@@ -152,7 +153,6 @@ class EmbeddedVLC:
         self.frame = tk.Frame(self.top, bg='black')
         self.frame.pack(fill='both', expand=True)
 
-        # En Linux, evitar conflictos con Xlib
         self.instance = vlc.Instance('--no-xlib') if sys.platform.startswith('linux') else vlc.Instance()
 
         # Preparar lista de medios
@@ -189,12 +189,9 @@ class EmbeddedVLC:
         self.top.focus_set()
 
     def play(self):
-        # Iniciar reproducción de la lista
         self.list_player.play()
-        time.sleep(0.2)
-        # Forzar fullscreen (algunos WMs necesitan un pequeño delay)
         try:
-            self.player.set_fullscreen(True)
+            self.top.after(200, lambda: self.player.set_fullscreen(True))
         except Exception:
             pass
 
@@ -234,17 +231,19 @@ def embed_and_play(assignments: List[Assignment]):
     root.withdraw()
 
     players: List[EmbeddedVLC] = []
+    shutdown = False
+
     try:
+
         for a in assignments:
             mon = monitor_for(a.screen)
             p = EmbeddedVLC(root, mon, a.path)
             players.append(p)
 
-        threads = []
-        for p in players:
-            t = threading.Thread(target=p.play, daemon=True)
-            t.start()
-            threads.append(t)
+        delay_ms = 50
+        for i, p in enumerate(players):
+            root.after(i * delay_ms, p.play)
+
     except Exception as e:
         print(f"[!] Error al iniciar reproductores: {e}")
         for p in players:
@@ -252,17 +251,39 @@ def embed_and_play(assignments: List[Assignment]):
         sys.exit(1)
 
     def on_escape(event=None):
-        for pl in players:
-            pl.stop()
-        root.quit()
+        nonlocal shutdown
+        if shutdown:
+            return
+        shutdown = True
 
+        root.unbind_all('<Escape>')
+
+        def _stop_all():
+
+            for pl in players:
+                try:
+                    pl.stop()
+                except Exception:
+                    pass
+
+            root.quit()
+
+
+        root.after(0, _stop_all)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_escape)
     root.bind_all('<Escape>', on_escape)
 
     try:
         root.mainloop()
     finally:
         for p in players:
-            p.stop()
+            try:
+                p.stop()
+            except Exception:
+                pass
+
 
 def main():
     embed_and_play(ASSIGNMENTS)
