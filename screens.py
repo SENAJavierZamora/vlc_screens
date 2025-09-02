@@ -15,8 +15,6 @@ Controles:
 
 import os
 import sys
-import time
-import threading
 import pathlib
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse, unquote
